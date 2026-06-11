@@ -15,7 +15,7 @@ An AI-powered curriculum and study plan generator built with Flask + local LLM (
 
 ```bash
 # 1. Clone
-git clone https://github.com/zaheda11/Lernix.git
+git clone [https://github.com/Sindhura-Karumuri/Lernix.git]
 cd Lernix
 
 # 2. Create virtual environment
