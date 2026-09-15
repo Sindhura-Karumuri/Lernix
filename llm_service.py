@@ -78,27 +78,11 @@ def generate_curriculum_from_llm(title, field, duration, target_audience="Underg
     - Realistic difficulty level, credits (3 or 4), learning hours, and career opportunities.
     """
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": DEFAULT_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.3,
-                    "top_p": 0.9
-                }
-            },
-            timeout=15
-        )
-        if response.status_code == 200:
-            raw_text = response.json().get("response", "").strip()
+        raw_text = _call_groq(prompt, temperature=0.3)
+        if raw_text:
             cleaned_text = re.sub(r"^```json\s*", "", raw_text, flags=re.MULTILINE)
             cleaned_text = re.sub(r"\s*```$", "", cleaned_text, flags=re.MULTILINE).strip()
-            
             parsed_json = json.loads(cleaned_text)
-            
-            # Post-process to ensure course-level resources are set
             for sem in parsed_json.get("semesters", []):
                 for course in sem.get("courses", []):
                     if "resources" not in course or not course["resources"]:
@@ -109,17 +93,16 @@ def generate_curriculum_from_llm(title, field, duration, target_audience="Underg
                             {"title": f"Google Scholar: {course.get('name', 'this course')}", "url": f"https://scholar.google.com/scholar?q={course_name_url}"},
                             {"title": f"Coursera: {skill_name}", "url": f"https://www.coursera.org/search?query={skill_name.replace(' ', '%20')}"}
                         ]
-            
             parsed_json["resource_sources"] = [
                 "ACM/IEEE Joint Curriculum Guidelines",
                 "IBM Skills Network Course Frameworks",
                 "Hugging Face Applied NLP Curriculum",
-                "LERNIX AI Engine via Granite 3.3 2B"
+                "LERNIX AI Engine via Granite 3.3"
             ]
             return parsed_json
     except Exception as e:
-        print(f"Ollama connection or execution failed: {e}. Falling back to high-quality mock curriculum.")
-        
+        print(f"Groq curriculum generation failed: {e}. Falling back to mock curriculum.")
+
     return generate_mock_curriculum(title, field, duration)
 
 def generate_study_plan_from_llm(curriculum_title, course_name, weekly_hours=10):
@@ -170,23 +153,10 @@ def generate_study_plan_from_llm(curriculum_title, course_name, weekly_hours=10)
     }}
     """
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={
-                "model": DEFAULT_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.4
-                }
-            },
-            timeout=15
-        )
-        if response.status_code == 200:
-            raw_text = response.json().get("response", "").strip()
+        raw_text = _call_groq(prompt, temperature=0.4)
+        if raw_text:
             cleaned_text = re.sub(r"^```json\s*", "", raw_text, flags=re.MULTILINE)
             cleaned_text = re.sub(r"\s*```$", "", cleaned_text, flags=re.MULTILINE).strip()
-            
             parsed_json = json.loads(cleaned_text)
             parsed_json["resource_sources"] = [
                 "LeetCode Interview Guides",
@@ -196,8 +166,8 @@ def generate_study_plan_from_llm(curriculum_title, course_name, weekly_hours=10)
             ]
             return parsed_json
     except Exception as e:
-        print(f"Ollama study plan failed: {e}. Falling back to mock assistant data.")
-        
+        print(f"Groq study plan failed: {e}. Falling back to mock assistant data.")
+
     return generate_mock_study_plan(course_name, weekly_hours)
 
 def generate_custom_interview_answer(course_name, question, **kwargs):
@@ -246,7 +216,7 @@ def generate_custom_interview_answer(course_name, question, **kwargs):
         if key in q_lower:
             return ans
 
-    # Try Ollama — augment prompt with RAG context if curriculum_id provided
+    # Try Groq — augment prompt with RAG context if curriculum_id provided
     rag_context = ""
     curriculum_id = kwargs.get("curriculum_id") if kwargs else None
     if curriculum_id:
@@ -256,16 +226,9 @@ def generate_custom_interview_answer(course_name, question, **kwargs):
     prompt = f"""You are LERNIX AI tutor. Answer the student's interview preparation question about the course '{course_name}'.{context_block}
 Question: {question}
 Provide a concise, technically accurate response of maximum 4 sentences."""
-    try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={"model": DEFAULT_MODEL, "prompt": prompt, "stream": False, "options": {"temperature": 0.4}},
-            timeout=10
-        )
-        if response.status_code == 200:
-            return response.json().get("response", "").strip()
-    except Exception:
-        pass
+    answer = _call_groq(prompt, temperature=0.4)
+    if answer:
+        return answer
 
     # Heuristic fallback — only for genuinely academic questions (already passed relevance gate)
     if "how" in q_lower or "explain" in q_lower:
@@ -987,14 +950,8 @@ def generate_full_report_data(topic, curriculum_data):
         '"capstone_projects":[{"title":"T","description":"D","tech_stack":["t1"],"deliverables":["d1"],"difficulty":"Advanced"}]}'
     )
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={"model": DEFAULT_MODEL, "prompt": prompt, "stream": False,
-                  "options": {"temperature": 0.3}},
-            timeout=20
-        )
-        if response.status_code == 200:
-            raw = response.json().get("response", "").strip()
+        raw = _call_groq(prompt, temperature=0.3)
+        if raw:
             raw = re.sub(r"^```json\s*", "", raw, flags=re.MULTILINE)
             raw = re.sub(r"\s*```$", "", raw, flags=re.MULTILINE).strip()
             return json.loads(raw)
@@ -1133,13 +1090,8 @@ JSON Schema:
   "suggested_topics": ["Topic idea 1", "Topic idea 2", "Topic idea 3"]
 }}"""
     try:
-        response = requests.post(
-            OLLAMA_URL,
-            json={"model": DEFAULT_MODEL, "prompt": prompt, "stream": False, "options": {"temperature": 0.3}},
-            timeout=15
-        )
-        if response.status_code == 200:
-            raw = response.json().get("response", "").strip()
+        raw = _call_groq(prompt, temperature=0.3)
+        if raw:
             raw = re.sub(r"^```json\s*", "", raw, flags=re.MULTILINE)
             raw = re.sub(r"\s*```$", "", raw, flags=re.MULTILINE).strip()
             return json.loads(raw)
