@@ -1,6 +1,6 @@
 # LERNIX — AI Curriculum Planner
 
-> An AI-powered academic curriculum generation and student learning management platform built with Flask, a locally hosted LLM (Ollama / IBM Granite), RAG, and a ReAct agent.
+> An AI-powered academic curriculum generation and student learning management platform built with Flask, Groq API (IBM Granite 3.3), RAG, and a ReAct agent.
 
 **Author:** [Sindhura Karumuri](https://github.com/Sindhura-Karumuri)
 **Repository:** https://github.com/Sindhura-Karumuri/Lernix
@@ -49,7 +49,7 @@ Three distinct user roles drive the experience:
 |---|---|
 | Backend | Python 3.11 / Flask 3.x |
 | Database | SQLite (default), upgradeable to PostgreSQL |
-| AI / LLM | Ollama (local) — IBM Granite 3.3 |
+| AI / LLM | Groq API — IBM Granite 3.3 (`ibm-granite/granite-3.3-8b-instruct`) |
 | RAG / Vector Store | TF-IDF cosine similarity — Python stdlib (`math`, `re`, `collections`) |
 | Agent | ReAct loop with tool calling — `agent.py` |
 | PDF Export | ReportLab 4.x |
@@ -65,7 +65,7 @@ Three distinct user roles drive the experience:
 lernix/
 ├── app.py                  # All Flask routes and API endpoints
 ├── database.py             # SQLite CRUD operations and schema migration
-├── llm_service.py          # Ollama LLM prompt construction and API calls
+├── llm_service.py          # Groq API LLM prompt construction and calls
 ├── rag_engine.py           # TF-IDF vector store and RAG retrieval engine
 ├── agent.py                # ReAct agent with tool calling loop
 ├── pdf_generator.py        # PDF, DOCX, and TXT report generation
@@ -146,14 +146,9 @@ The agent executes the tool, feeds the `Observation` back, and repeats up to 3 i
 ## Prerequisites
 
 - Python 3.11+
-- [Ollama](https://ollama.com) installed and running locally
-- IBM Granite model pulled in Ollama:
+- A free [Groq API key](https://console.groq.com) — sign up and create a key under **API Keys**
 
-```bash
-ollama pull granite3.3:latest
-```
-
-> Any Ollama-compatible model works. Update `DEFAULT_MODEL` in `llm_service.py` and `agent.py` if using a different one.
+> Any Groq-hosted model works. Update `GROQ_MODEL` in your `.env` file if using a different one.
 
 ---
 
@@ -174,12 +169,9 @@ pip install -r requirements.txt
 
 # 4. Configure environment variables
 cp .env.example .env
-# Open .env and set SECRET_KEY to a strong random value
+# Open .env and fill in SECRET_KEY and GROQ_API_KEY
 
-# 5. Start Ollama (in a separate terminal)
-ollama serve
-
-# 6. Run the application
+# 5. Run the application
 flask run
 ```
 
@@ -206,7 +198,8 @@ Open `http://localhost:5000` in your browser.
 | `SECRET_KEY` | Flask session signing key | auto-generated (insecure) |
 | `FLASK_DEBUG` | Enable debug mode (`1` / `0`) | `0` |
 | `DATABASE_PATH` | Path to the SQLite database file | `lernix.db` |
-| `OLLAMA_BASE_URL` | Ollama API base URL | `http://localhost:11434` |
+| `GROQ_API_KEY` | Groq API key — get free at [console.groq.com](https://console.groq.com) | required |
+| `GROQ_MODEL` | Groq model identifier | `ibm-granite/granite-3.3-8b-instruct` |
 
 Copy `.env.example` to `.env` and fill in values before running.
 
@@ -271,7 +264,8 @@ POST /api/agent/ask
    - `SECRET_KEY` — a long random string (use `python -c "import secrets; print(secrets.token_hex(32))"`)
    - `FLASK_DEBUG` — `0`
    - `DATABASE_PATH` — `lernix.db` or a persistent volume path
-   - `OLLAMA_BASE_URL` — URL of your hosted Ollama instance
+   - `GROQ_API_KEY` — your Groq API key from [console.groq.com](https://console.groq.com)
+   - `GROQ_MODEL` — `ibm-granite/granite-3.3-8b-instruct`
 
 > SQLite is suitable for demos and single-instance deployments. For production traffic with concurrent users, migrate to PostgreSQL — no application-level changes are required beyond updating the database connection in `database.py`.
 
