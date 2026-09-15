@@ -12,6 +12,7 @@ load_dotenv()
 import database
 import llm_service
 import pdf_generator
+import agent as lernix_agent
 
 app = Flask(__name__)
 
@@ -516,7 +517,10 @@ def api_assistant_interview_ask():
     if not course_name or not question:
         return jsonify({"success": False, "message": "Course name and question are required."}), 400
         
-    answer = llm_service.generate_custom_interview_answer(course_name, question)
+    answer = llm_service.generate_custom_interview_answer(
+        course_name, question,
+        curriculum_id=data.get('curriculum_id')
+    )
     return jsonify({"success": True, "answer": answer})
 
 # --- Quiz APIs ---
@@ -976,6 +980,24 @@ def export_custom(id):
         as_attachment=True,
         download_name=f"{safe_topic}.pdf"
     )
+
+@app.route('/api/agent/ask', methods=['POST'])
+@login_required
+def api_agent_ask():
+    """
+    ReAct agent endpoint. The agent autonomously selects tools (get_course_info,
+    search_curriculum, get_career_paths, get_quiz_hint) to answer the question.
+    """
+    data = request.json or {}
+    question = (data.get('question') or '').strip()
+    curriculum_id = data.get('curriculum_id')
+
+    if not question or not curriculum_id:
+        return jsonify({"success": False, "message": "question and curriculum_id are required."}), 400
+
+    answer = lernix_agent.run_agent(question, int(curriculum_id))
+    return jsonify({"success": True, "answer": answer})
+
 
 # --- Admin APIs ---
 

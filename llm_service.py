@@ -3,6 +3,8 @@ import requests
 import re
 import random
 
+import rag_engine
+
 OLLAMA_URL = "http://localhost:11434/api/generate"
 DEFAULT_MODEL = "granite3.3:latest" # Configured for IBM Granite 3.3
 
@@ -180,7 +182,7 @@ def generate_study_plan_from_llm(curriculum_title, course_name, weekly_hours=10)
         
     return generate_mock_study_plan(course_name, weekly_hours)
 
-def generate_custom_interview_answer(course_name, question):
+def generate_custom_interview_answer(course_name, question, **kwargs):
     """
     Queries Ollama to answer a custom student question about a course.
     Falls back to a structured mock answer if Ollama is unreachable.
@@ -226,8 +228,14 @@ def generate_custom_interview_answer(course_name, question):
         if key in q_lower:
             return ans
 
-    # Try Ollama
-    prompt = f"""You are LERNIX AI tutor. Answer the student's interview preparation question about the course '{course_name}'.
+    # Try Ollama — augment prompt with RAG context if curriculum_id provided
+    rag_context = ""
+    curriculum_id = kwargs.get("curriculum_id") if kwargs else None
+    if curriculum_id:
+        rag_context = rag_engine.retrieve_context(question, curriculum_id, top_k=3)
+
+    context_block = f"\n{rag_context}\n" if rag_context else ""
+    prompt = f"""You are LERNIX AI tutor. Answer the student's interview preparation question about the course '{course_name}'.{context_block}
 Question: {question}
 Provide a concise, technically accurate response of maximum 4 sentences."""
     try:
