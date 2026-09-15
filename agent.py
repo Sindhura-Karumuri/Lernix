@@ -14,14 +14,13 @@ Tools available:
   - get_career_paths    : list career opportunities for a course/skill
 """
 
+import os
 import json
 import re
 import requests
 
 import database
 import rag_engine
-
-import os
 
 _base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
 OLLAMA_URL = f"{_base}/api/generate"
@@ -223,9 +222,12 @@ Only call one tool per step. Do not make up tool results."""
 
     # Fallback: use RAG context directly
     context = rag_engine.retrieve_context_from_store(question, store, top_k=3)
-    fallback_prompt = (
-        f"You are a helpful academic assistant for the curriculum '{curriculum_title}'.\n"
-        f"{context}\n\nAnswer this question concisely: {question}"
-    )
-    answer = _call_llm(fallback_prompt, temperature=0.4)
-    return answer or "I could not find a specific answer in this curriculum. Please consult your course materials."
+    if context:
+        fallback_prompt = (
+            f"You are a helpful academic assistant for the curriculum '{curriculum_title}'.\n"
+            f"{context}\n\nAnswer this question concisely: {question}"
+        )
+        answer = _call_llm(fallback_prompt, temperature=0.4)
+        if answer:
+            return answer
+    return "I could not find a specific answer in this curriculum. Please consult your course materials."

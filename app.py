@@ -3,7 +3,12 @@ import os
 import json
 import csv
 import io
+import secrets
+import logging
+import time
+from functools import wraps
 from datetime import datetime
+from werkzeug.security import generate_password_hash
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -17,18 +22,29 @@ import agent as lernix_agent
 app = Flask(__name__)
 
 _secret = os.environ.get("SECRET_KEY", "")
-if not _secret or _secret == "lernix_super_secret_session_encryption_key_12345":
-    import secrets
+if not _secret:
     _secret = secrets.token_hex(32)
+    if os.environ.get("FLASK_DEBUG", "0") != "1":
+        logging.warning("SECRET_KEY not set — using a random key. Sessions will not persist across restarts.")
 app.secret_key = _secret
 
-# Initialize database schema and pre-populate defaults on launch
 database.init_db()
+
+# --- Rate limiting (simple in-memory per-IP) ---
+_login_attempts: dict = {}
+
+def _check_rate_limit(ip: str, max_attempts: int = 10, window: int = 60) -> bool:
+    now = time.time()
+    attempts = [t for t in _login_attempts.get(ip, []) if now - t < window]
+    _login_attempts[ip] = attempts
+    if len(attempts) >= max_attempts:
+        return False
+    _login_attempts[ip].append(now)
+    return True
 
 # --- Middleware & Helper Decorators ---
 
 def login_required(f):
-    from functools import wraps
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -37,7 +53,6 @@ def login_required(f):
     return decorated_function
 
 def educator_or_admin_required(f):
-    from functools import wraps
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
@@ -47,6 +62,30 @@ def educator_or_admin_required(f):
             return redirect(url_for('dashboard_page'))
         return f(*args, **kwargs)
     return decorated_function
+
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login_page'))
+        if session.get('role') != 'admin':
+            return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+# --- Error Handlers ---
+
+@app.errorhandler(404)
+def not_found(e):
+    if request.path.startswith('/api/'):
+        return jsonify({"success": False, "message": "Endpoint not found."}), 404
+    return render_template('base.html'), 404
+
+@app.errorhandler(500)
+def server_error(e):
+    if request.path.startswith('/api/'):
+        return jsonify({"success": False, "message": "Internal server error."}), 500
+    return render_template('base.html'), 500
 
 # --- Page Controllers ---
 
@@ -272,13 +311,13 @@ def tracker_page():
 
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
+    if not _check_rate_limit(request.remote_addr):
+        return jsonify({"success": False, "message": "Too many attempts. Please wait and try again."}), 429
     data = request.json or {}
     email = data.get('email')
     password = data.get('password')
-    
     if not email or not password:
         return jsonify({"success": False, "message": "Email and password are required."}), 400
-        
     user = database.authenticate_user(email, password)
     if user:
         session['user_id'] = user['id']
@@ -286,11 +325,12 @@ def api_login():
         session['full_name'] = user['full_name']
         session['role'] = user['role']
         return jsonify({"success": True, "message": "Logged in successfully."})
-    
     return jsonify({"success": False, "message": "Invalid email or password."}), 401
 
 @app.route('/api/auth/register', methods=['POST'])
 def api_register():
+    if not _check_rate_limit(request.remote_addr):
+        return jsonify({"success": False, "message": "Too many attempts. Please wait and try again."}), 429
     data = request.json or {}
     email = data.get('email')
     password = data.get('password')
@@ -610,7 +650,6 @@ def api_profile_update():
         conn.close()
         
     if password:
-        from werkzeug.security import generate_password_hash
         pwd_hash = generate_password_hash(password)
         conn = database.get_db_connection()
         cursor = conn.cursor()
@@ -1003,9 +1042,8 @@ def api_agent_ask():
 
 @app.route('/api/admin/user/role', methods=['POST'])
 @login_required
+@admin_required
 def api_admin_update_role():
-    if session['role'] != 'admin':
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.json or {}
     user_id = data.get('user_id')
     role = data.get('role')
@@ -1019,9 +1057,8 @@ def api_admin_update_role():
 
 @app.route('/api/admin/user/delete', methods=['POST'])
 @login_required
+@admin_required
 def api_admin_delete_user():
-    if session['role'] != 'admin':
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.json or {}
     user_id = data.get('user_id')
     if not user_id or int(user_id) == session['user_id']:

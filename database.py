@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import json
 from werkzeug.security import generate_password_hash, check_password_hash
 
 db_name = os.environ.get("DATABASE_PATH", "lernix.db")
@@ -59,12 +60,19 @@ def init_db(force=False):
             ("curricula", "satisfaction_score", "INTEGER CHECK(satisfaction_score BETWEEN 1 AND 5) DEFAULT NULL")
         ]
         
+        ALLOWED_MIGRATIONS = {
+            ("users", "year"), ("users", "branch"), ("users", "roll_no"),
+            ("users", "subscription_tier"), ("users", "generation_count"),
+            ("curricula", "satisfaction_score"),
+        }
         for table, col, col_def in columns_to_add:
+            if (table, col) not in ALLOWED_MIGRATIONS:
+                continue
             try:
                 cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_def}")
                 conn.commit()
             except sqlite3.OperationalError:
-                pass # Already exists
+                pass  # Already exists
         
         # Create student tracking tables if missing
         cursor.execute("""
