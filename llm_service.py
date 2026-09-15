@@ -5,8 +5,11 @@ import random
 
 import rag_engine
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-DEFAULT_MODEL = "granite3.3:latest" # Configured for IBM Granite 3.3
+import os
+
+_base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+OLLAMA_URL = f"{_base}/api/generate"
+DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "granite3.3:latest")
 
 def generate_curriculum_from_llm(title, field, duration, target_audience="Undergraduate"):
     """

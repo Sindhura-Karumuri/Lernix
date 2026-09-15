@@ -21,8 +21,11 @@ import requests
 import database
 import rag_engine
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-DEFAULT_MODEL = "granite3.3:latest"
+import os
+
+_base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+OLLAMA_URL = f"{_base}/api/generate"
+DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "granite3.3:latest")
 MAX_ITERATIONS = 3
 
 # ---------------------------------------------------------------------------

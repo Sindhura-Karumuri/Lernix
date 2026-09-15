@@ -38,4 +38,8 @@ Thumbs.db
 # Exports / generated files
 *.pdf
 *.csv
+*.docx
 exports/
+
+# Salesforce / other tooling
+.sf/
