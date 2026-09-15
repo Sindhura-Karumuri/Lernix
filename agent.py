@@ -17,14 +17,13 @@ Tools available:
 import os
 import json
 import re
-import requests
 
 import database
 import rag_engine
+from groq import Groq
 
-_base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
-OLLAMA_URL = f"{_base}/api/generate"
-DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "granite3.3:latest")
+_groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY", ""))
+DEFAULT_MODEL = os.environ.get("GROQ_MODEL", "ibm-granite/granite-3.3-8b-instruct")
 MAX_ITERATIONS = 3
 
 # ---------------------------------------------------------------------------
@@ -136,17 +135,16 @@ def _execute_tool(tool_name: str, tool_input: dict,
 
 def _call_llm(prompt: str, temperature: float = 0.3) -> str:
     try:
-        resp = requests.post(
-            OLLAMA_URL,
-            json={"model": DEFAULT_MODEL, "prompt": prompt,
-                  "stream": False, "options": {"temperature": temperature}},
+        response = _groq_client.chat.completions.create(
+            model=DEFAULT_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=2048,
             timeout=15,
         )
-        if resp.status_code == 200:
-            return resp.json().get("response", "").strip()
+        return response.choices[0].message.content.strip()
     except Exception:
-        pass
-    return ""
+        return ""
 
 
 # ---------------------------------------------------------------------------

@@ -1,15 +1,30 @@
 import json
-import requests
 import re
 import random
+import os
 
 import rag_engine
 
-import os
+from groq import Groq
 
-_base = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
-OLLAMA_URL = f"{_base}/api/generate"
-DEFAULT_MODEL = os.environ.get("OLLAMA_MODEL", "granite3.3:latest")
+_groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY", ""))
+DEFAULT_MODEL = os.environ.get("GROQ_MODEL", "ibm-granite/granite-3.3-8b-instruct")
+
+
+def _call_groq(prompt: str, temperature: float = 0.3, timeout: int = 30) -> str:
+    """Single Groq API call. Returns response text or empty string on failure."""
+    try:
+        response = _groq_client.chat.completions.create(
+            model=DEFAULT_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=4096,
+            timeout=timeout,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Groq API call failed: {e}")
+        return ""
 
 def generate_curriculum_from_llm(title, field, duration, target_audience="Undergraduate"):
     """
